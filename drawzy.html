@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Drawzy</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#eef1f5;color:#18202a;overflow:hidden}
+.app{height:100vh;display:flex;flex-direction:column}.top{height:58px;background:#fff;border-bottom:1px solid #d7dce3;display:flex;align-items:center;padding:8px 12px;gap:8px}
+.logo{font-weight:800;font-size:21px;margin-right:auto}.top button,.bottom button{border:1px solid #d3d8df;background:#fff;border-radius:10px;padding:8px 11px;font-size:14px}
+.main{flex:1;display:flex;min-height:0}.tools{width:82px;background:#fff;border-right:1px solid #d7dce3;padding:7px;display:flex;flex-direction:column;gap:6px;overflow:auto}
+.tool{width:68px;min-height:52px;border:1px solid #d3d8df;background:#fff;border-radius:10px;font-size:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}.tool span{font-size:20px}.tool.active{background:#e9f0ff;border-color:#6689df}
+.canvasWrap{flex:1;position:relative;overflow:hidden;background:#d9dde3;display:flex;align-items:center;justify-content:center}canvas{background:#fff;touch-action:none;box-shadow:0 3px 18px #0002}
+#guide{position:absolute;pointer-events:none;display:none}.panel{position:absolute;right:10px;top:10px;width:245px;background:#fff;border:1px solid #d3d8df;border-radius:14px;padding:12px;box-shadow:0 8px 30px #0002;display:none}
+.panel h3{margin:0 0 9px;font-size:15px}.panel input[type=file]{width:100%}.row{display:flex;align-items:center;gap:8px;margin:9px 0}.row label{font-size:13px;flex:1}.row input[type=range]{width:125px}
+.bottom{height:58px;background:#fff;border-top:1px solid #d7dce3;display:flex;align-items:center;gap:12px;padding:8px 12px}.bottom label{font-size:13px}.bottom input[type=range]{vertical-align:middle}.status{font-size:13px;color:#66717f}.swatch{width:42px;height:38px;border:0;padding:0;background:none}
+@media(max-width:650px){.tools{width:66px}.tool{width:52px}.top button{padding:7px 8px}.logo{font-size:18px}.panel{right:5px;top:5px;width:220px}}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="top"><div class="logo">🎨 Drawzy</div>
+<button id="new">New</button><button id="image">Image</button><button id="stencil">Stencil</button><button id="save">Save</button></header>
+<div class="main"><aside class="tools" id="tools"></aside>
+<div class="canvasWrap" id="wrap"><canvas id="canvas"></canvas><canvas id="guide"></canvas>
+<div class="panel" id="panel"><h3>🖼️ Stencil Guide</h3><input id="file" type="file" accept="image/*">
+<div class="row"><label>See-through</label><input id="op" type="range" min="5" max="90" value="35"></div>
+<div class="row"><label>Size</label><input id="scale" type="range" min="30" max="180" value="100"></div>
+<div class="row"><button id="hide">Hide guide</button></div></div>
+</div></div>
+<footer class="bottom"><input id="color" class="swatch" type="color" value="#111111">
+<label>Size <input id="size" type="range" min="1" max="60" value="6"></label><span class="status" id="status">Pencil</span></footer>
+</div>
+<script>
+const c=document.getElementById('canvas'),x=c.getContext('2d'),g=document.getElementById('guide'),gx=g.getContext('2d'),wrap=document.getElementById('wrap');
+const color=document.getElementById('color'),size=document.getElementById('size'),status=document.getElementById('status');let W=1000,H=700,drawing=false,lx=0,ly=0,undo=[],redo=[],img=null;
+const list=[['Pencil','✏️'],['Pen','🖊️'],['Crayon','🖍️'],['Marker','🖌️'],['Highlighter','🖍️'],['Fountain Pen','🪶'],['Reed Pen','🌾'],['Watercolor','🎨'],['Spray Paint','💨'],['Eraser','🧽'],['Fill','🪣'],['Lasso','🔲'],['Ruler','📏'],['Text','🔤']];
+list.forEach(([n,i])=>{let b=document.createElement('button');b.className='tool';b.innerHTML=`<span>${i}</span>${n}`;b.onclick=()=>select(n,b);document.getElementById('tools').appendChild(b)});
+function fit(){let r=wrap.getBoundingClientRect(),s=Math.min((r.width-20)/W,(r.height-20)/H);c.width=W;c.height=H;c.style.width=W*s+'px';c.style.height=H*s+'px';g.width=W;g.height=H;g.style.width=c.style.width;g.style.height=c.style.height;if(!x.getImageData(0,0,1,1).data[3]){x.fillStyle='#fff';x.fillRect(0,0,W,H)}}
+function select(n,b){tool=n;status.textContent=n;document.querySelectorAll('.tool').forEach(q=>q.classList.remove('active'));b.classList.add('active')}
+function save(){undo.push(x.getImageData(0,0,W,H));if(undo.length>30)undo.shift();redo=[]}
+function pos(e){let r=c.getBoundingClientRect();return{x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height}}
+function style(){x.lineCap='round';x.lineJoin='round';x.globalCompositeOperation=tool==='Eraser'?'destination-out':'source-over';x.strokeStyle=color.value;let s=+size.value;x.lineWidth=s;x.globalAlpha=1;if(tool==='Highlighter'){x.globalAlpha=.25;x.lineWidth=s*2.5}if(tool==='Watercolor'){x.globalAlpha=.2;x.lineWidth=s*2}if(tool==='Marker'){x.globalAlpha=.6;x.lineWidth=s*1.3}if(tool==='Crayon')x.globalAlpha=.75;if(tool==='Fountain Pen')x.lineWidth=s*1.8;if(tool==='Reed Pen')x.lineWidth=s*.65}
+function spray(px,py){let s=+size.value*2.2;x.fillStyle=color.value;x.globalCompositeOperation='source-over';for(let i=0;i<45;i++){let a=Math.random()*6.283,r=Math.random()*s;x.globalAlpha=.15+Math.random()*.5;x.beginPath();x.arc(px+Math.cos(a)*r,py+Math.sin(a)*r,Math.random()*1.7+.3,0,6.283);x.fill()}}
+c.addEventListener('pointerdown',e=>{e.preventDefault();let p=pos(e);save();drawing=true;lx=p.x;ly=p.y;c.setPointerCapture(e.pointerId);
+if(tool==='Fill'){x.globalCompositeOperation='source-over';x.globalAlpha=1;x.fillStyle=color.value;x.fillRect(0,0,W,H);drawing=false}
+else if(tool==='Text'){let t=prompt('Type your text:');if(t){x.globalCompositeOperation='source-over';x.globalAlpha=1;x.fillStyle=color.value;x.font=`${Math.max(14,+size.value*4)}px sans-serif`;x.fillText(t,p.x,p.y)}drawing=false}
+else if(tool==='Ruler'){drawing=false;x.save();x.globalAlpha=.7;x.strokeStyle='#333';x.lineWidth=2;x.beginPath();x.moveTo(p.x,p.y);x.lineTo(p.x+250,p.y);x.stroke();x.restore()}
+else{style();if(tool==='Spray Paint')spray(p.x,p.y);else{x.beginPath();x.moveTo(p.x,p.y);x.lineTo(p.x+.1,p.y+.1);x.stroke()}}});
+c.addEventListener('pointermove',e=>{if(!drawing)return;let p=pos(e);if(tool==='Spray Paint')spray(p.x,p.y);else{style();x.beginPath();x.moveTo(lx,ly);x.lineTo(p.x,p.y);x.stroke()}lx=p.x;ly=p.y});
+c.addEventListener('pointerup',()=>{drawing=false;x.globalAlpha=1;x.globalCompositeOperation='source-over'});
+document.getElementById('new').onclick=()=>{save();x.clearRect(0,0,W,H);x.fillStyle='#fff';x.fillRect(0,0,W,H)};
+document.getElementById('save').onclick=()=>{let a=document.createElement('a');a.download='drawzy-drawing.png';a.href=c.toDataURL();a.click()};
+document.getElementById('image').onclick=()=>document.getElementById('file').click();
+document.getElementById('stencil').onclick=()=>{let p=document.getElementById('panel');p.style.display=p.style.display==='block'?'none':'block'};
+document.getElementById('hide').onclick=()=>g.style.display='none';
+document.getElementById('file').onchange=e=>{let f=e.target.files[0];if(!f)return;let im=new Image();im.onload=()=>{img=im;renderGuide();document.getElementById('panel').style.display='block'};im.src=URL.createObjectURL(f)};
+function renderGuide(){gx.clearRect(0,0,W,H);if(!img)return;let s=+document.getElementById('scale').value/100,iw=img.width*s,ih=img.height*s,px=(W-iw)/2,py=(H-ih)/2;gx.drawImage(img,px,py,iw,ih);let d=gx.getImageData(0,0,W,H),a=d.data;for(let i=0;i<a.length;i+=4){let lum=.299*a[i]+.587*a[i+1]+.114*a[i+2],edge=255-lum;a[i]=30;a[i+1]=70;a[i+2]=130;a[i+3]=edge>45?Math.min(190,edge*2.1):0}gx.putImageData(d,0,0);g.style.display='block';g.style.opacity=+document.getElementById('op').value/100}
+document.getElementById('op').oninput=()=>g.style.opacity=document.getElementById('op').value/100;
+document.getElementById('scale').oninput=renderGuide;
+document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='z'&&undo.length){redo.push(x.getImageData(0,0,W,H));x.putImageData(undo.pop(),0,0)}});
+fit();addEventListener('resize',fit);select('Pencil',document.querySelector('.tool'));
+</script></body></html>
